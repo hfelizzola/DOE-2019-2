@@ -204,4 +204,4 @@ kru.test <- kruskal(df2$X, trt = df2$Sistema, group = TRUE, console = TRUE)
 plot.group(kru.test)
 ```
 
-
+Con esta prueba se llega a los mismos resultados del ANOVA
