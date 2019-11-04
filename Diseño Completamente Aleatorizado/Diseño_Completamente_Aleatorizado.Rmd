@@ -1,0 +1,207 @@
+---
+title: "Diseño Completamente Aleatorizado"
+author: "Heriberto Felizzola Jimenez"
+subtitle: "Diseño de Experimentos"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.align = "center")
+library(ggplot2)   # Libreria para graficar
+library(agricolae) # Libreria para realizar comparaciones
+library(lawstat)   # Libreria para realizar prueba de corrida
+library(nortest)   # Pruebas de normalidad
+```
+
+
+# Diseño completamente aleatorizado - ANOVA
+
+Un equipo de mejora investiga el efecto de cuatro métodos de ensamble A, B, C y D, sobre el tiempo de ensamble en minutos. En este caso se tiene a = 4 tratamientos y n = 4 observaciones por tratamiento. 
+
+En primera instancia, la estrategia experimental es aplicar cuatro veces los cuatro métodos de ensamble en orden completamente aleatorio (las N = 16 pruebas en orden aleatorio).
+
+Si se usa el diseño completamente al azar (DCA), se supone que, además del método de ensamble, no existe ningún otro factor que influya de manera significativa sobre la variable de respuesta (tiempo de ensamble).
+
+```{r datos ejercicio 3.1}
+Ord.Corrida <-  c(1:16)
+Metodo <-  c('C','C','A','B','B','D','D','C','A','D','A','D','B','C','A','B')
+Tiempo <-  c(11,13,8,7,9,10,12,11,7,9,6,11,8,16,8,10)
+df1 <-  data.frame(Ord.Corrida = Ord.Corrida, 
+                     Metodo = factor(Metodo), 
+                     Tiempo = Tiempo)
+```
+
+## Análisis exploratorio de los datos
+
+A continuación se presenta la gráfica de valores individuales.
+
+```{r}
+p <- ggplot(data = df1, mapping = aes(x = as.numeric(Metodo), y = Tiempo)) 
+p + geom_point() + 
+  stat_summary(geom = "line", fun.y = mean) +
+  ggtitle(label = "Gráfica de valores individuales") 
+```
+
+## Hipotesis
+Las hipotesis que se plantean en un DCA son:
+
+$$
+H_{0}: \mu_{1} = \mu_{2} = ... = \mu_{a} = \mu \\
+H_{a}: \mu_{i} \neq \mu_{j}\: para \: algun \: i \neq i \\
+$$
+
+El modelo estadistico lineal para el DCA:
+
+$$
+Y_{ij} = \mu + \tau_{i} + \varepsilon_{ij}
+$$
+
+## Análisis de varianza
+
+El anova para un DCA:
+
+```{r}
+lm.DCA <-  lm(formula = Tiempo ~ Metodo, data = df1) # Primero se construye un modelo lineal
+anova(lm.DCA) # Se genera el ANOVA para el modelo lineal
+```
+
+
+Con valor-p = 0.00177 y un $\alpha = 0.05$, se rechaza la hipotesis nula, por tanto, se infiere que no todas las medias de los cuatro tratamiento son iguales.
+
+## Comparaciones
+
+### Metodo LSD
+
+Un prueba LSD se presenta a continuación:
+
+```{r}
+# Se debe instalar el paquete agricolae, en caso de no tenerlo instalado
+LSD <-  LSD.test(y = aov(lm.DCA),
+                 trt = "Metodo",
+                 alpha = 0.05, group = TRUE, console = TRUE)
+```
+
+A continuación se presenta una gráfica con los resultados de las comparaciones bajo el método LSD:
+
+```{r}
+plot.group(LSD)
+```
+
+### Metodo Tukey
+
+Una prueba de Tukey se presenta a continuación:
+
+```{r}
+Tukey <-  HSD.test(y = aov(lm.DCA),
+                   trt = "Metodo",
+                   alpha = 0.05,
+                   group = TRUE, console = TRUE)
+```
+
+Gráfica para las comparaciones por el método de Tukey:
+
+```{r}
+plot.group(Tukey)
+```
+
+## Verificación de supuestos
+
+### Normalidad
+
+A continuación una gráfica de normalidad para los residuales:
+
+```{r}
+# wich = 2, indica que se gráfica la de probabilidad
+plot(x = lm.DCA, which = 2)
+```
+
+Un prueba Anderson-Darling se muestra a continuación:
+
+```{r}
+ad.test(residuals(lm.DCA))
+```
+
+Con valor p de 0.435 no se rechaza Ho por tanto se concluye que los residuales siguen una distribución normal.
+
+### Homocedasticidad
+
+A continuación se presentan algunas gráfica de homocedasticidad:
+
+```{r}
+par(mfrow = c(1,2))
+plot(x = lm.DCA, which = c(1,5))
+```
+
+Un prueba de levene se presenta a continuación:
+
+```{r}
+levene.test(y = df1$Tiempo, group = df1$Metodo, location = "median")
+```
+
+Con un valor p de 0.4485 se concluye que los datos son homocedasticos.
+
+### Independencia
+
+```{r}
+df1$Eij <- residuals(lm.DCA) # Se extraen los residuales del modelo lineal
+df1$eij <- df1$Eij/sqrt(2.46) # Se calcula los residuales estandarizados
+ggplot(data = df1, mapping = aes(x = Ord.Corrida,y = eij)) + 
+  geom_line() + 
+  scale_x_continuous(breaks = c(1:16)) +
+  scale_y_continuous(limits = c(-2.5,2.5)) +
+  geom_hline(yintercept = 0, col = "red") +
+  ggtitle("Residuales estandarizados vs Orden de Corrida")
+```
+
+Un prueba de corridas ó rachas.
+
+```{r}
+runs.test(y = df1$eij, plot.it = T)
+``` 
+
+# Metódos no paramétricos para el análisis de un DCA
+
+En un experimento para determinar cuál de tres diferentes sistemas de misiles es preferible, se mide la tasa de combustión del propulsor. 
+
+Utilice la prueba de Kruskal-Wallis y un nivel de significancia de $\alpha = 0.05$ para probar la hipótesis de que las tasas de combustión del propulsor son iguales para los tres sistemas de misiles.
+
+```{r}
+Sistema <- factor(c(1,1,1,1,1,2,2,2,2,2,2,3,3,3,3,3,3,3,3))
+x <- c(24.0,16.7,22.8,19.8,18.9,23.2,19.8,18.1,17.6,20.2,17.8,
+       18.4,19.1,17.3,17.3,19.7,18.9,18.8,19.3)
+Rij = rank(x) 
+df2 <- data.frame(Sistema = Sistema, X = x, Rij = Rij)
+```
+
+## Análisis gráfico de los rangos
+
+```{r}
+p2 <- ggplot(data = df2, mapping = aes(x = Sistema, y = Rij, col = Sistema))
+p2 + geom_point()
+```
+
+## Prueba de Kruskal-Wallis
+
+A continuación se presenta la prueba:
+
+```{r}
+kruskal.test(x~Sistema, data = df2)
+```
+
+
+## Comparaciones de medias para el método de Kruskal-Wallis
+
+A continuación se presentan las comparaciones de tratamientos cuando se ha utilizando el método de Kruskal-Wallis
+
+```{r}
+kru.test <- kruskal(df2$X, trt = df2$Sistema, group = TRUE, console = TRUE)
+```
+
+```{r}
+plot.group(kru.test)
+```
+
+
